@@ -2,11 +2,10 @@
 
 'use client';
 
-import React, { useState, FormEvent } from 'react';
+import React, { useState, FormEvent, useEffect } from 'react';
 import { signUp } from 'aws-amplify/auth'; 
 import { configureAmplify } from '@/lib/aws-amplify-config'; 
 import { COUNTRY_CODES } from '@/src/utils/countryCodes'; 
-import CountryCodeSelect from '@/components/forms/CountryCodeSelect'; 
 
 interface SignUpFormProps {
     onSignUpSuccess: (email: string) => void;
@@ -17,49 +16,109 @@ interface AmplifyAuthError extends Error {
     message: string;
 }
 
+// Get India's code details for default setting
+const INDIA_CODE = COUNTRY_CODES.find(c => c.code === 'IN') || COUNTRY_CODES[0];
+
+// ✅ FIX 1: Removed the empty string key ('') from the union type
+type FieldError = 'name' | 'email' | 'password' | 'mobile' | 'gender' | 'general'; 
+
 const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
-    configureAmplify();
+    
+    useEffect(() => {
+        configureAmplify();
+    }, []);
 
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [name, setName] = useState('');
     const [gender, setGender] = useState('');
-    const [mobileNumber, setMobileNumber] = useState('');
-    const [countryCode, setCountryCode] = useState(COUNTRY_CODES[0].dial_code); 
+    const [mobileNumberDigits, setMobileNumberDigits] = useState(''); 
+    const [countryCode, setCountryCode] = useState(INDIA_CODE.dial_code); 
     
-    const [error, setError] = useState('');
+    const [generalError, setGeneralError] = useState('');
+    
+    // ✅ FIX 2: Removed the empty string key ('') from the initial state object
+    const [fieldError, setFieldError] = useState<Record<FieldError, string>>({
+        name: '', 
+        email: '', 
+        password: '', 
+        mobile: '', 
+        gender: '', 
+        general: ''
+    });
+    
     const [isSubmitting, setIsSubmitting] = useState(false);
 
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     
-    const inputClasses = (isInvalid: boolean) => `
-        bg-brand-light-secondary dark:bg-brand-dark-tertiary border 
-        text-brand-text-light-primary dark:text-brand-text-primary 
-        placeholder:text-brand-text-light-secondary dark:placeholder:text-brand-text-secondary 
-        text-sm rounded-full block w-full p-4 transition-colors duration-300 
-        ${
-            isInvalid
-                ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
-                : 'border-brand-light-tertiary dark:border-brand-dark-tertiary focus:ring-brand-green focus:border-brand-green'
-        }
-    `;
+    // Robust Password Regular Expression (min 8 chars, 1 uppercase, 1 lowercase, 1 number OR special char)
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*[0-9!@#$%^&*])(?=.{8,})/;
     
-    const selectClasses = (isInvalid: boolean) => `${inputClasses(isInvalid)} appearance-none`;
+    // Helper function to update the input styles based on field error status
+    const inputClasses = (fieldName: FieldError) => {
+        const isInvalid = fieldError[fieldName];
+        return `
+            bg-brand-light-secondary dark:bg-brand-dark-tertiary border 
+            text-brand-text-light-primary dark:text-brand-text-primary 
+            placeholder:text-brand-text-light-secondary dark:placeholder:text-brand-text-secondary 
+            text-sm rounded-full block w-full p-4 transition-colors duration-300 
+            ${
+                isInvalid
+                    ? 'border-red-500 focus:ring-red-500 focus:border-red-500'
+                    : 'border-brand-light-tertiary dark:border-brand-dark-tertiary focus:ring-brand-green focus:border-brand-green'
+            }
+        `;
+    };
+    
+    const selectClasses = (fieldName: FieldError) => `${inputClasses(fieldName)} appearance-none`;
 
     const handleSignUp = async (e: FormEvent) => {
         e.preventDefault();
-        setError('');
+        // Reset errors
+        setGeneralError('');
+        // Resetting the field errors
+        setFieldError({ name: '', email: '', password: '', mobile: '', gender: '', general: '' }); 
 
-        if (!name.trim()) return setError("Please enter your name.");
-        if (!emailRegex.test(email)) return setError("Please enter a valid email address.");
-        if (password.length < 8) return setError("Password must be at least 8 characters long.");
-        if (!mobileNumber.trim() || mobileNumber.length < 6) return setError("Please enter a valid mobile number.");
-        if (!gender) return setError("Please select your gender.");
+        const cleanedMobileNumber = mobileNumberDigits.trim().replace(/\s|-/g, '');
+        let hasError = false;
 
+        // --- Client-Side Validation ---
+        if (!name.trim()) { 
+            setFieldError(prev => ({ ...prev, name: "Please enter your full name." })); 
+            hasError = true;
+        }
+        if (!emailRegex.test(email)) {
+            setFieldError(prev => ({ ...prev, email: "Please enter a valid email address." })); 
+            hasError = true;
+        }
+        
+        // UPDATED PASSWORD CHECK: Use Regex for complexity
+        if (!passwordRegex.test(password)) {
+            setFieldError(prev => ({ 
+                ...prev, 
+                password: "Password must be at least 8 characters long and contain 1 uppercase letter, 1 lowercase letter, and 1 number or special character." 
+            }));
+            hasError = true;
+        }
+
+        if (cleanedMobileNumber.length < 6) { 
+            setFieldError(prev => ({ ...prev, mobile: "Please enter a valid mobile number." })); 
+            hasError = true;
+        }
+        if (!gender) { 
+            setFieldError(prev => ({ ...prev, gender: "Please select your gender." })); 
+            hasError = true;
+        }
+
+        if (hasError) {
+            setGeneralError("Please fix the errors below to continue.");
+            return;
+        }
+
+        // --- Cognito API Call ---
         try {
             setIsSubmitting(true);
-            
-            const fullPhoneNumber = `${countryCode}${mobileNumber.trim()}`;
+            const fullPhoneNumber = `${countryCode}${cleanedMobileNumber}`;
             
             const response = await signUp({
                 username: email.trim(),
@@ -67,13 +126,10 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
                 options: {
                     userAttributes: {
                         email: email.trim(),
-                        // 🟢 FIX FOR SCIM/NAME SCHEMA ERROR: Pass the full name in the 'name' attribute
                         name: name.trim(), 
-                        // It's often helpful to still pass the first name separately if required by the schema:
                         given_name: name.trim().split(' ')[0] || '', 
-                        
                         phone_number: fullPhoneNumber, 
-                        gender: gender,                  
+                        gender: gender,          
                     },
                 },
             });
@@ -93,15 +149,22 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
                 const amplifyError = err as AmplifyAuthError;
                 
                 if (amplifyError.name === 'UsernameExistsException') {
-                    message = 'This email address is already registered. Please log in or reset your password.';
+                    message = 'This email address is already registered.';
+                    setFieldError(prev => ({ ...prev, email: message }));
                 } else if (amplifyError.name === 'InvalidPasswordException') {
-                    message = 'Invalid password. Please ensure it meets the policy requirements.';
+                    // Update field error message to reflect the complexity rule
+                    message = "Invalid password. Must be at least 8 characters long and contain 1 uppercase letter, 1 lowercase letter, and 1 number or special character.";
+                    setFieldError(prev => ({ ...prev, password: message }));
+                } else if (amplifyError.message.includes('phone_number')) {
+                    message = 'The mobile number format is invalid.';
+                    setFieldError(prev => ({ ...prev, mobile: message }));
                 } else {
                     message = amplifyError.message.replace('username', 'email');
+                    setGeneralError(message);
                 }
+            } else {
+                setGeneralError(message);
             }
-            
-            setError(message);
         } finally {
             setIsSubmitting(false);
         }
@@ -109,11 +172,15 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
 
     return (
         <form className="space-y-6" onSubmit={handleSignUp} noValidate>
-            {error && (
-                <div className="text-sm text-white bg-red-600 p-3 rounded-lg text-center">{error}</div>
+            
+            {/* Professional General Error Banner */}
+            {generalError && (
+                <div className="text-sm text-red-100 bg-red-800/80 border border-red-500 p-4 rounded-lg text-center font-medium transition-opacity duration-300">
+                    {generalError}
+                </div>
             )}
             
-            {/* Name Input */}
+            {/* --- Name Input --- */}
             <div>
                 <label htmlFor="name" className="block text-sm font-medium text-brand-text-secondary mb-2">Full Name</label>
                 <input
@@ -121,15 +188,18 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
                     name="name"
                     id="name"
                     value={name}
-                    onChange={(e) => { setName(e.target.value); setError(''); }}
-                    className={inputClasses(!!error)}
+                    onChange={(e) => { setName(e.target.value); setFieldError(prev => ({ ...prev, name: '' })); setGeneralError(''); }}
+                    className={inputClasses('name')}
                     placeholder="John Doe"
                     required
                     disabled={isSubmitting}
                 />
+                {fieldError.name && (
+                    <p className="text-xs text-red-400 mt-2 ml-4 transition-opacity duration-300">{fieldError.name}</p>
+                )}
             </div>
 
-            {/* Email Input */}
+            {/* --- Email Input --- */}
             <div>
                 <label htmlFor="email" className="block text-sm font-medium text-brand-text-secondary mb-2">Email Address</label>
                 <input
@@ -137,15 +207,18 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
                     name="email"
                     id="email"
                     value={email}
-                    onChange={(e) => { setEmail(e.target.value); setError(''); }}
-                    className={inputClasses(!!error)}
+                    onChange={(e) => { setEmail(e.target.value); setFieldError(prev => ({ ...prev, email: '' })); setGeneralError(''); }}
+                    className={inputClasses('email')}
                     placeholder="you@example.com"
                     required
                     disabled={isSubmitting}
                 />
+                {fieldError.email && (
+                    <p className="text-xs text-red-400 mt-2 ml-4 transition-opacity duration-300">{fieldError.email}</p>
+                )}
             </div>
 
-            {/* Password Input */}
+            {/* --- Password Input --- */}
             <div>
                 <label htmlFor="password" className="block text-sm font-medium text-brand-text-secondary mb-2">Password</label>
                 <input
@@ -153,48 +226,76 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
                     name="password"
                     id="password"
                     value={password}
-                    onChange={(e) => { setPassword(e.target.value); setError(''); }}
-                    className={inputClasses(!!error)}
+                    onChange={(e) => { setPassword(e.target.value); setFieldError(prev => ({ ...prev, password: '' })); setGeneralError(''); }}
+                    className={inputClasses('password')}
                     placeholder="••••••••"
                     required
                     disabled={isSubmitting}
                 />
+                {fieldError.password && (
+                    <p className="text-xs text-red-400 mt-2 ml-4 transition-opacity duration-300">{fieldError.password}</p>
+                )}
             </div>
             
-            {/* Mobile Number with Searchable Country Code */}
+            {/* --- Mobile Number Combined Input --- */}
             <div>
                 <label htmlFor="mobile" className="block text-sm font-medium text-brand-text-secondary mb-2">Mobile Number</label>
-                <div className="flex space-x-2">
-                    <CountryCodeSelect
+                
+                <div className={`flex relative rounded-full border 
+                    ${fieldError.mobile ? 'border-red-500' : 'border-brand-light-tertiary dark:border-brand-dark-tertiary'}
+                    bg-brand-light-secondary dark:bg-brand-dark-tertiary
+                `}>
+                    
+                    {/* Country Code Selector */}
+                    <select
                         value={countryCode}
-                        onChange={setCountryCode}
+                        onChange={(e) => setCountryCode(e.target.value)}
                         disabled={isSubmitting}
-                        isInvalid={!!error}
-                    />
+                        className="bg-transparent text-sm p-4 pr-0 w-[110px] appearance-none 
+                            text-brand-text-light-primary dark:text-brand-text-primary 
+                            focus:outline-none focus:ring-0 focus:border-0 relative z-20"
+                    >
+                        {COUNTRY_CODES.map((country) => (
+                            <option key={country.code} value={country.dial_code}>
+                                {country.code} ({country.dial_code})
+                            </option>
+                        ))}
+                    </select>
+                    
+                    {/* Divider */}
+                    <div className="w-[1px] bg-brand-light-tertiary dark:bg-brand-dark-secondary my-2"></div>
 
+                    {/* Mobile Digits Input */}
                     <input
                         type="tel"
                         name="mobile"
                         id="mobile"
-                        value={mobileNumber}
-                        onChange={(e) => { setMobileNumber(e.target.value); setError(''); }}
-                        className={`${inputClasses(!!error)} w-4/5`} 
+                        value={mobileNumberDigits}
+                        onChange={(e) => { setMobileNumberDigits(e.target.value); setFieldError(prev => ({ ...prev, mobile: '' })); setGeneralError(''); }}
+                        className="flex-grow bg-transparent text-sm p-4 
+                            text-brand-text-light-primary dark:text-brand-text-primary 
+                            placeholder:text-brand-text-light-secondary dark:placeholder:text-brand-text-secondary 
+                            focus:outline-none focus:ring-0 focus:border-0 border-none"
                         placeholder="80000 80000"
                         required
                         disabled={isSubmitting}
+                        inputMode="numeric"
                     />
                 </div>
+                {fieldError.mobile && (
+                    <p className="text-xs text-red-400 mt-2 ml-4 transition-opacity duration-300">{fieldError.mobile}</p>
+                )}
             </div>
 
-            {/* Gender Dropdown */}
+            {/* --- Gender Dropdown --- */}
             <div>
                 <label htmlFor="gender" className="block text-sm font-medium text-brand-text-secondary mb-2">Gender</label>
                 <select
                     name="gender"
                     id="gender"
                     value={gender}
-                    onChange={(e) => { setGender(e.target.value); setError(''); }}
-                    className={selectClasses(!!error)}
+                    onChange={(e) => { setGender(e.target.value); setFieldError(prev => ({ ...prev, gender: '' })); setGeneralError(''); }}
+                    className={selectClasses('gender')}
                     required
                     disabled={isSubmitting}
                 >
@@ -203,6 +304,9 @@ const SignUpForm: React.FC<SignUpFormProps> = ({ onSignUpSuccess }) => {
                     <option value="female">Female</option>
                     <option value="other">Other</option>
                 </select>
+                {fieldError.gender && (
+                    <p className="text-xs text-red-400 mt-2 ml-4 transition-opacity duration-300">{fieldError.gender}</p>
+                )}
             </div>
 
             <button
