@@ -30,12 +30,13 @@ const ConfirmSignUp: React.FC<ConfirmSignUpProps> = ({ username, onConfirmationS
     const isUsernameValid = !!username && username.trim() !== '';
 
     useEffect(() => {
+        // 🟢 Improvement: Configure once on mount. If you have a global provider, remove this.
         configureAmplify();
         
         if (!isUsernameValid) {
             setError('Account details are missing. Please sign up again.');
         }
-    }, [isUsernameValid]);
+    }, [isUsernameValid]); // Retained dependency
 
     const inputClasses = (isInvalid: boolean) => `
         bg-brand-light-secondary dark:bg-brand-dark-tertiary border 
@@ -80,7 +81,12 @@ const ConfirmSignUp: React.FC<ConfirmSignUpProps> = ({ username, onConfirmationS
             
             if (err && typeof err === 'object' && 'message' in err) {
                 const amplifyError = err as AmplifyAuthError;
-                message = amplifyError.message.replace('username', 'email');
+                
+                if (amplifyError.name === 'CodeMismatchException') {
+                    message = 'The confirmation code is incorrect or expired. Please check your email or resend the code.';
+                } else {
+                    message = amplifyError.message.replace('username', 'email');
+                }
             }
             
             setError(message);
@@ -135,7 +141,6 @@ const ConfirmSignUp: React.FC<ConfirmSignUpProps> = ({ username, onConfirmationS
         <form className="space-y-6" onSubmit={handleConfirm} noValidate>
             <h2 className="text-2xl font-bold text-brand-text-primary">Verify Your Account</h2>
             <p className="text-brand-text-secondary">
-                {/* 🟢 Displays the actual email or placeholder if not valid */}
                 We sent a verification code to **{isUsernameValid ? username : 'your email address'}**. Please enter the 6-digit code below.
             </p>
 

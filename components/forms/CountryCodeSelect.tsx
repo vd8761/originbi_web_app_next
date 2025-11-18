@@ -32,23 +32,24 @@ const CountryCodeSelect: React.FC<CountryCodeSelectProps> = ({
     
     // Helper function to format the display text (e.g., "IN (+91)")
     const getFormattedCode = (dialCode: string): string => {
-        // Find the country object based on the dial code, defaulting to the first one (India) if not found.
+        // Find the country object based on the dial code, defaulting to the first one if not found.
         const country = COUNTRY_CODES.find(c => c.dial_code === dialCode) || COUNTRY_CODES[0];
         return `${country.code} (${country.dial_code})`;
     };
 
-    // 🟢 GUARANTEED FIX: Initialize searchTerm with the default formatted value.
+    // Initialize searchTerm with the default formatted value.
     const [searchTerm, setSearchTerm] = useState(getFormattedCode(value));
     
     const [isOpen, setIsOpen] = useState(false);
     const wrapperRef = useRef<HTMLDivElement>(null);
+    const inputRef = useRef<HTMLInputElement>(null); // Ref for the input field
 
     // Filtered list based on search term
     const filteredCodes = COUNTRY_CODES.filter(country => {
-        const lowerSearch = searchTerm.toLowerCase();
+        const lowerSearch = searchTerm.toLowerCase().trim();
         return (
             country.name.toLowerCase().includes(lowerSearch) ||
-            country.dial_code.includes(searchTerm) ||
+            country.dial_code.includes(searchTerm.trim()) ||
             country.code.toLowerCase().includes(lowerSearch)
         );
     });
@@ -58,24 +59,31 @@ const CountryCodeSelect: React.FC<CountryCodeSelectProps> = ({
         function handleClickOutside(event: MouseEvent) {
             if (wrapperRef.current && !wrapperRef.current.contains(event.target as Node)) {
                 setIsOpen(false);
+                // 🟢 FIX: When clicking outside, reset the search term to the actual selected value
+                setSearchTerm(getFormattedCode(value));
             }
         }
         document.addEventListener('mousedown', handleClickOutside);
         return () => {
             document.removeEventListener('mousedown', handleClickOutside);
         };
-    }, [wrapperRef]);
-    
+    }, [wrapperRef, value]); // Added 'value' dependency
+
     // Update display text if the value prop changes externally (e.g., component reset)
     useEffect(() => {
-        setSearchTerm(getFormattedCode(value));
-    }, [value]);
+        // Only update the display text if the dropdown is closed or if the value is different
+        if (!isOpen) {
+            setSearchTerm(getFormattedCode(value));
+        }
+    }, [value, isOpen]);
 
 
     const handleSelect = (country: CountryCode) => {
         onChange(country.dial_code); 
         setSearchTerm(getFormattedCode(country.dial_code));
         setIsOpen(false);
+        // 🟢 FIX: Manually remove focus from the input to close the soft keyboard/search mode
+        inputRef.current?.blur(); 
     };
 
     const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -93,6 +101,7 @@ const CountryCodeSelect: React.FC<CountryCodeSelectProps> = ({
         <div className="relative w-1/5 min-w-[100px]" ref={wrapperRef}> 
             {/* Input field for searching and displaying selected code */}
             <input
+                ref={inputRef} // Set the ref here
                 type="text"
                 value={searchTerm}
                 onChange={handleInputChange}
@@ -102,8 +111,8 @@ const CountryCodeSelect: React.FC<CountryCodeSelectProps> = ({
                 placeholder="Code"
                 required
                 disabled={disabled}
+                autoComplete="off" // Prevents browser autocomplete on the search field
             />
-
             {/* Dropdown list */}
             {isOpen && (
                 <div className="absolute z-20 w-[200px] mt-1 left-0 bg-white dark:bg-brand-dark-secondary border border-brand-light-tertiary dark:border-brand-dark-tertiary rounded-lg shadow-xl max-h-60 overflow-y-scroll overflow-x-hidden custom-scrollbar">
