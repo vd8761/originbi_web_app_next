@@ -1,9 +1,11 @@
-import React, { useMemo } from 'react';
+
+import React, { useMemo, useState } from 'react';
 import { CompletedStepIcon, CurrentStepIcon, PendingStepIcon } from './icons/StepperIcons'; 
 import LockIcon from './icons/LockIcon';
+import AssessmentModal from './AssessmentModal';
 
 // --- Interfaces ---
-interface AssessmentData {
+export interface AssessmentData {
   id: string;
   title: string;
   description: string;
@@ -12,15 +14,21 @@ interface AssessmentData {
   status: 'completed' | 'in-progress' | 'locked' | 'not-started';
   dateCompleted?: string;
   unlockTime?: string;
+  duration?: string;
 }
 
 interface AssessmentCardProps extends AssessmentData {
   progress: number;
+  onAction: (id: string) => void;
 }
 
 interface StepperProps {
   overallProgress: number;
   steps: { label: string; status: string; progress: number }[]; 
+}
+
+interface AssessmentScreenProps {
+    onStartAssessment?: () => void;
 }
 
 const Stepper: React.FC<StepperProps> = ({ steps }) => {
@@ -118,7 +126,7 @@ const LockTimer: React.FC<{ time: string }> = ({ time }) => {
 }
 
 const AssessmentCard: React.FC<AssessmentCardProps> = ({ 
-  title, description, progress, totalQuestions, completedQuestions, status, dateCompleted, unlockTime 
+  id, title, description, progress, totalQuestions, completedQuestions, status, dateCompleted, unlockTime, onAction 
 }) => {
   const isLocked = status === 'locked';
   const isNotStarted = status === 'not-started';
@@ -174,6 +182,7 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
             </span>
             </div>
             <button 
+            onClick={() => onAction(id)}
             disabled={status === 'completed' || isLocked}
             className={`px-5 py-2 rounded-full text-xs font-medium transition-colors duration-300 ${
                 status === 'completed' ? 'bg-brand-light-tertiary dark:bg-brand-dark-tertiary text-brand-text-light-white dark:text-brand-text-white cursor-default' : 
@@ -192,20 +201,28 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
              {/* Background Base */}
              <div className="absolute inset-0 bg-brand-dark-primary/90 backdrop-blur-sm z-10" />
              
-             {/* Animated Blobs */}
-             <div className="absolute top-0 -left-10 w-40 h-40 bg-brand-green/30 rounded-full mix-blend-screen filter blur-2xl opacity-50 animate-blob" />
-             <div className="absolute bottom-0 -right-10 w-40 h-40 bg-brand-green/20 rounded-full mix-blend-screen filter blur-2xl opacity-50 animate-blob" style={{ animationDelay: '2s' }} />
-             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-40 h-40 bg-blue-500/10 rounded-full mix-blend-screen filter blur-2xl opacity-30 animate-blob" style={{ animationDelay: '4s' }} />
+             {/* Vector Background Pattern */}
+             <svg className="absolute inset-0 w-full h-full z-10 opacity-[0.03]" width="100%" height="100%">
+                <pattern id="pattern-circles" x="0" y="0" width="24" height="24" patternUnits="userSpaceOnUse" patternContentUnits="userSpaceOnUse">
+                    <circle id="pattern-circle" cx="2" cy="2" r="1.5" fill="currentColor" className="text-white" />
+                </pattern>
+                <rect id="rect" x="0" y="0" width="100%" height="100%" fill="url(#pattern-circles)" />
+             </svg>
+
+             {/* Animated Blobs - Using Neutral/Gray colors */}
+             <div className="absolute top-0 -left-10 w-72 h-72 bg-white/5 rounded-full mix-blend-screen filter blur-[60px] opacity-30 animate-blob" />
+             <div className="absolute bottom-0 -right-10 w-72 h-72 bg-white/10 rounded-full mix-blend-screen filter blur-[60px] opacity-20 animate-blob" style={{ animationDelay: '2s' }} />
+             <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-72 h-72 bg-white/5 rounded-full mix-blend-screen filter blur-[60px] opacity-20 animate-blob" style={{ animationDelay: '4s' }} />
 
              {/* Content */}
              <div className="absolute inset-0 z-20 flex flex-col items-center justify-center p-4 text-center">
                  {/* Lock Circle */}
-                 <div className="relative w-20 h-20 mb-4 rounded-full bg-[#13161B] flex items-center justify-center shadow-2xl border border-white/5">
-                    <LockIcon className="w-8 h-8 text-[#9CA3AF]" /> 
+                 <div className="relative w-28 h-28 mb-6 rounded-full bg-[#13161B] flex items-center justify-center shadow-2xl border border-white/5">
+                    <LockIcon className="w-12 h-12 text-[#9CA3AF]" /> 
                  </div>
                  
-                 <h4 className="text-xl font-bold text-white mb-2">Locked</h4>
-                 <p className="text-xs text-brand-text-secondary max-w-[200px]">
+                 <h4 className="text-xl font-bold text-white mb-2 tracking-wide">Locked</h4>
+                 <p className="text-sm text-brand-text-secondary max-w-[220px] leading-relaxed">
                     Complete previous assessments to unlock this module
                  </p>
              </div>
@@ -216,7 +233,9 @@ const AssessmentCard: React.FC<AssessmentCardProps> = ({
 };
 
 // --- Main Component ---
-const AssessmentScreen: React.FC = () => {
+const AssessmentScreen: React.FC<AssessmentScreenProps> = ({ onStartAssessment }) => {
+  const [selectedAssessment, setSelectedAssessment] = useState<AssessmentData | null>(null);
+  
   const assessments: AssessmentData[] = [
     {
       id: '1',
@@ -225,7 +244,8 @@ const AssessmentScreen: React.FC = () => {
       totalQuestions: 75,
       completedQuestions: 75,
       status: 'completed',
-      dateCompleted: '12 Aug 2025'
+      dateCompleted: '12 Aug 2025',
+      duration: '60 minutes'
     },
     {
       id: '2',
@@ -233,7 +253,8 @@ const AssessmentScreen: React.FC = () => {
       description: 'Tackle real situations with clear logic and confident action.',
       totalQuestions: 75,
       completedQuestions: 25,
-      status: 'in-progress'
+      status: 'in-progress',
+      duration: '90 minutes'
     },
     {
       id: '3',
@@ -242,7 +263,8 @@ const AssessmentScreen: React.FC = () => {
       totalQuestions: 75,
       completedQuestions: 0,
       status: 'locked',
-      unlockTime: '23h:45Min'
+      unlockTime: '23h:45Min',
+      duration: '45 minutes'
     },
     {
       id: '4',
@@ -250,7 +272,8 @@ const AssessmentScreen: React.FC = () => {
       description: 'Measure your speed, clarity, and accuracy under pressure',
       totalQuestions: 75,
       completedQuestions: 0,
-      status: 'not-started'
+      status: 'not-started',
+      duration: '30 minutes'
     },
     {
       id: '5',
@@ -258,7 +281,8 @@ const AssessmentScreen: React.FC = () => {
       description: 'Evaluate your ability to perceive and manage emotions effectively.',
       totalQuestions: 75,
       completedQuestions: 0,
-      status: 'locked'
+      status: 'locked',
+      duration: '120 minutes'
     }
   ];
 
@@ -271,18 +295,30 @@ const AssessmentScreen: React.FC = () => {
 
   const overallPercentage = Math.round((totalCompleted / totalQuestions) * 100);
 
-  // Only show the first 4 steps in the stepper progress to match design
   const stepperSteps = assessments.slice(0, 4).map(assessment => ({
     label: assessment.title.split(' ').slice(-1)[0],
     status: assessment.status === 'completed' ? 'completed' : assessment.status === 'in-progress' ? 'current' : 'pending',
     progress: Math.round((assessment.completedQuestions / assessment.totalQuestions) * 100),
   }));
 
-  // Manual overrides for shorter labels in stepper
   if (stepperSteps.length > 0) stepperSteps[0].label = 'Mindset';
   if (stepperSteps.length > 1) stepperSteps[1].label = 'Problem-Solving';
   if (stepperSteps.length > 2) stepperSteps[2].label = 'Behavior Patterns';
   if (stepperSteps.length > 3) stepperSteps[3].label = 'Think & Respond';
+
+  const handleCardAction = (id: string) => {
+      const assessment = assessments.find(a => a.id === id);
+      if (assessment) {
+          setSelectedAssessment(assessment);
+      }
+  };
+
+  const handleStartAssessment = () => {
+      if (onStartAssessment) {
+        onStartAssessment();
+      }
+      setSelectedAssessment(null);
+  };
 
   return (
     <div className="flex flex-col gap-4 w-full px-4 md:px-8 lg:px-[80px] pb-10">
@@ -314,9 +350,17 @@ const AssessmentScreen: React.FC = () => {
                 key={assessment.id}
                 {...assessment}
                 progress={Math.round((assessment.completedQuestions / assessment.totalQuestions) * 100)}
+                onAction={handleCardAction}
             />
         ))}
       </div>
+
+      <AssessmentModal 
+        isOpen={!!selectedAssessment} 
+        assessment={selectedAssessment} 
+        onClose={() => setSelectedAssessment(null)} 
+        onStart={handleStartAssessment}
+      />
     </div>
   );
 };
