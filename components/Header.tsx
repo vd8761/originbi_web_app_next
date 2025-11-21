@@ -17,6 +17,9 @@ import { useTheme } from '../contexts/ThemeContext';
 
 interface HeaderProps {
     onLogout: () => void;
+    currentView?: 'dashboard' | 'assessment';
+    onNavigate?: (view: 'dashboard' | 'assessment') => void;
+    hideNav?: boolean;
 }
 
 const NavItem: React.FC<{ icon: React.ReactNode; label: string; active?: boolean; isMobile?: boolean }> = ({ icon, label, active, isMobile }) => {

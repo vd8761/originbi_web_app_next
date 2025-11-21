@@ -1,10 +1,9 @@
-// app/assessment/page.tsx
 'use client';
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-// Import the new AssessmentLayout component
-import AssessmentLayout from '@/components/AssessmentLayout'; 
+import AssessmentLayout from '../../components/AssessmentLayout';
+import AssessmentScreen from '../../components/AssessmentScreen';
 
 export default function AssessmentPage() {
     const router = useRouter();
@@ -13,8 +12,14 @@ export default function AssessmentPage() {
         router.push('/login');
     };
 
+    const handleStart = () => {
+        // Navigate to the separate runner page
+        router.push('/assessment/runner');
+    };
+
     return (
-        // Render the new layout, passing the required onLogout prop
-        <AssessmentLayout onLogout={handleLogout} />
+        <AssessmentLayout onLogout={handleLogout}>
+            <AssessmentScreen onStartAssessment={handleStart} />
+        </AssessmentLayout>
     );
 }
