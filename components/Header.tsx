@@ -34,12 +34,18 @@ const NavItem: React.FC<NavItemProps> = ({ icon, label, active, isMobile, onClic
     // Show text only on 2XL screens for desktop to save space on laptops (1280px), or if active/mobile
     const showText = isMobile; 
     const showDesktopText = 'hidden 2xl:inline'; 
+    
+    // Apply space-x-2/gap-2 ONLY when text is visible to avoid off-center icons.
+    // Mobile: Gap 3 for better touch targets.
+    // Desktop (<2XL): Gap 0, center icon.
+    // Desktop (2XL+): Gap 3, left align.
+    const spacingClass = isMobile ? 'gap-3' : 'justify-center 2xl:justify-start gap-0 2xl:gap-3';
 
     return (
         <div className="relative group">
             <button 
                 onClick={onClick}
-                className={`flex items-center rounded-lg transition-colors duration-200 w-full ${active ? 'bg-brand-green text-white px-3 py-2' : 'text-brand-text-light-secondary dark:text-brand-text-secondary hover:bg-brand-light-tertiary dark:hover:bg-brand-dark-tertiary hover:text-brand-text-light-primary dark:hover:text-white p-2 lg:px-3'}`}
+                className={`flex items-center ${spacingClass} rounded-lg transition-colors duration-200 w-full ${active ? 'bg-brand-green text-white px-3 py-2' : 'text-brand-text-light-secondary dark:text-brand-text-secondary hover:bg-brand-light-tertiary dark:hover:bg-brand-dark-tertiary hover:text-brand-text-light-primary dark:hover:text-white p-2 lg:px-3'}`}
             >
                 {icon}
                  <span className={`font-medium text-sm whitespace-nowrap ${isMobile ? 'inline' : showDesktopText}`}>{label}</span>
