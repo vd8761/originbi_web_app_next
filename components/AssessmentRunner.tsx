@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState } from 'react';
 import CheckCircleIcon from './icons/CheckCircleIcon';
 import StepperUpArrowIcon from './icons/StepperUpArrowIcon';
 import StepperDownArrowIcon from './icons/StepperDownArrowIcon';
@@ -27,7 +27,6 @@ interface AssessmentRunnerProps {
 const questions: Question[] = [
   {
     id: 1,
-    // Split text to handle formatting: Preamble (Regular) + Text (Bold/New Line)
     preamble: "You walk into a lab and see a glowing blue liquid.",
     text: "What do you do?",
     options: [
@@ -48,81 +47,158 @@ const questions: Question[] = [
       { id: 'd', text: "Wonder if it's safe to touch" },
     ]
   },
+  {
+    id: 3,
+    preamble: "Your project deadline is moved up by two weeks suddenly.",
+    text: "What is your immediate reaction?",
+    options: [
+      { id: 'a', text: "Panic initially, then plan" }, 
+      { id: 'b', text: "Immediately rally the team" },
+      { id: 'c', text: "Negotiate for more resources" },
+      { id: 'd', text: "Work extra hours silently" },
+    ]
+  },
+  {
+    id: 4,
+    preamble: "A team member disagrees with your proposal in a meeting.",
+    text: "How do you respond?",
+    options: [
+      { id: 'a', text: "Defend your idea aggressively" }, 
+      { id: 'b', text: "Ask them to explain their view" },
+      { id: 'c', text: "Suggest discussing it offline" },
+      { id: 'd', text: "Ignore the comment" },
+    ]
+  },
+  {
+    id: 5,
+    preamble: "You spot a significant error in a report sent to the client.",
+    text: "What is your next step?",
+    options: [
+      { id: 'a', text: "Inform the client immediately" }, 
+      { id: 'b', text: "Fix it quietly if possible" },
+      { id: 'c', text: "Blame the person responsible" },
+      { id: 'd', text: "Wait for them to notice" },
+    ]
+  },
+  {
+    id: 6,
+    preamble: "You are asked to lead a new initiative with unclear goals.",
+    text: "How do you proceed?",
+    options: [
+      { id: 'a', text: "Ask for clarification first" }, 
+      { id: 'b', text: "Start with what you know" },
+      { id: 'c', text: "Decline until goals are set" },
+      { id: 'd', text: "Create your own goals" },
+    ]
+  },
+  {
+    id: 7,
+    preamble: "A colleague takes credit for your work.",
+    text: "How do you handle this?",
+    options: [
+      { id: 'a', text: "Confront them publicly" }, 
+      { id: 'b', text: "Speak to them privately" },
+      { id: 'c', text: "Inform the manager" },
+      { id: 'd', text: "Let it go this time" },
+    ]
+  },
 ];
 
 // --- VerticalStepper Component ---
 
 const VerticalStepper: React.FC<{ currentStep: number; totalSteps: number }> = ({ currentStep, totalSteps }) => {
-  const containerRef = useRef<HTMLDivElement>(null);
+  
+  const windowSize = 6;
+  
+  // Sliding Window Logic
+  let start = currentStep - 1;
+  let end = start + windowSize - 1;
 
-  // Auto-scroll to active step
-  useEffect(() => {
-    if (containerRef.current) {
-        // Simple logic to scroll the active element into view
-        const activeElement = containerRef.current.querySelector(`[data-step="${currentStep}"]`);
-        if (activeElement) {
-            activeElement.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
-    }
-  }, [currentStep]);
+  if (end > totalSteps) {
+      end = totalSteps;
+      start = end - windowSize + 1;
+  }
+
+  if (start < 1) {
+      start = 1;
+      end = Math.min(start + windowSize - 1, totalSteps);
+  }
 
   const renderSteps = () => {
     const steps = [];
-    // Render all steps, let CSS/Scroll handle visibility window
-    for (let i = 1; i <= totalSteps; i++) {
+    
+    for (let i = start; i <= end; i++) {
       const isActive = i === currentStep;
       const isCompleted = i < currentStep;
+      
+      // Line logic: Connect i to i+1.
+      // Color is green if this step (i) is completed.
+      const isLineActive = isCompleted; 
 
       steps.push(
-        <div key={i} data-step={i} className="flex flex-col items-center relative shrink-0">
-          {/* Connection Line */}
-          {i > 1 && (
-            <div className={`w-[2px] h-6 -mt-1 mb-1 relative z-0 transition-colors duration-300 ${isCompleted || isActive ? 'bg-[#1ED36A]' : 'bg-[#303438]'}`} />
-          )}
+        <div key={i} className="flex flex-col items-center relative shrink-0 z-10">
           
           {/* Step Circle */}
           <div 
             className={`
-              rounded-full flex items-center justify-center font-bold text-xs transition-all duration-300 relative z-20
-              ${isActive 
-                ? 'w-10 h-10 scale-110' // Active: Larger, Icon handling below
-                : 'w-10 h-10 bg-[#24272B] border border-[#303438] text-[#718096] text-base' // Others: Dark circle, Number
-              }
-              ${isCompleted ? 'border-[#1ED36A] text-[#1ED36A]' : ''} 
+              rounded-full flex items-center justify-center font-bold text-xs transition-all duration-300 relative
+              w-10 h-10 text-xs sm:text-sm
+              ${isCompleted 
+                ? 'bg-[#1ED36A] text-white'
+                : isActive 
+                    ? '' // Active uses the SVG Icon directly
+                    : 'bg-[#24272B] text-[#718096]'
+              } 
             `}
           >
             {isActive ? (
-                // Show Icon ONLY for Active Question
-                <StepperPendingDotIcon className="w-12 h-12 drop-shadow-[0_0_8px_rgba(30,211,106,0.4)]" />
+                <StepperPendingDotIcon className="w-10 h-10" />
             ) : (
-                // Show Number for Completed and Pending
-                i
+                <span>{i}</span>
             )}
           </div>
+
+           {/* Connection Line (Draws DOWN from current step to next) */}
+           {/* Only render if not the last item in the WINDOW */}
+           {i < end && (
+            <div className={`w-[2px] h-6 sm:h-8 my-1 rounded-full relative -z-10 transition-colors duration-500 ${isLineActive ? 'bg-[#1ED36A]' : 'bg-[#303438]'}`} />
+          )}
         </div>
       );
     }
     return steps;
   };
 
+  // Logic for lines connecting to arrows
+  const isTopLineActive = true; // Always green from top
+  const isBottomLineActive = end < currentStep;
+
   return (
-    <div className="flex flex-col items-center w-16 pt-8 lg:pt-16 shrink-0 h-full">
+    <div className="flex flex-col items-center w-16 h-full justify-center py-4 shrink-0 select-none relative z-0">
       {/* Up Arrow Button */}
-      <button className="p-2 text-[#718096] hover:text-[#1ED36A] transition-colors mb-2 border border-[#303438] rounded-full bg-[#1A1D21] z-10">
-        <StepperUpArrowIcon className="w-4 h-4" />
+      <button className="flex items-center justify-center hover:opacity-80 transition-opacity z-20 mb-1 group">
+         <div className="w-10 h-10 rounded-full bg-[#1A3A2C] border border-[#1ED36A] flex items-center justify-center group-hover:bg-[#1ED36A] transition-colors">
+            <StepperUpArrowIcon className="w-[14px] h-[7px] text-[#1ED36A] group-hover:text-white transition-colors" />
+         </div>
       </button>
       
+      {/* Connection Line from Up Arrow to First Visible Step */}
+      {/* Removed -z-10 to prevent it from being hidden behind the main bg */}
+      <div className={`w-[2px] h-6 sm:h-8 my-1 rounded-full transition-colors duration-500 ${isTopLineActive ? 'bg-[#1ED36A]' : 'bg-[#303438]'}`} />
+
       {/* Stepper Steps Container */}
-      <div 
-        ref={containerRef}
-        className="flex flex-col items-center my-2 max-h-[calc(100vh-300px)] overflow-y-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']"
-      >
+      <div className="flex flex-col items-center">
         {renderSteps()}
       </div>
 
-      {/* Down Arrow Button */}
-      <button className="p-2 text-[#718096] hover:text-[#1ED36A] transition-colors mt-2 border border-[#303438] rounded-full bg-[#1A1D21] z-10">
-        <StepperDownArrowIcon className="w-4 h-4" />
+      {/* Connection Line from Last Visible Step to Down Arrow */}
+       <div className={`w-[2px] h-6 sm:h-8 my-1 rounded-full transition-colors duration-500 ${isBottomLineActive ? 'bg-[#1ED36A]' : 'bg-[#303438]'}`} />
+
+      {/* Down Arrow Button - Updated to match Up Arrow Style */}
+      <button className="flex items-center justify-center hover:opacity-80 transition-opacity z-20 mt-1 group">
+        <div className="w-10 h-10 rounded-full bg-[#1A3A2C] border border-[#1ED36A] flex items-center justify-center group-hover:bg-[#1ED36A] transition-colors">
+             <StepperDownArrowIcon className="w-[14px] h-[8px] text-[#1ED36A] group-hover:text-white transition-colors" />
+        </div>
       </button>
     </div>
   );
@@ -130,27 +206,27 @@ const VerticalStepper: React.FC<{ currentStep: number; totalSteps: number }> = (
 
 // --- CircularProgress Component ---
 
-const CircularProgress: React.FC<{ current: number; total: number }> = ({ current, total }) => {
+const CircularProgress: React.FC<{ current: number; total: number; className?: string }> = ({ current, total, className = "w-16 h-16 lg:w-[105px] lg:h-[105px]" }) => {
     const percentage = Math.round((current / total) * 100);
     
     const radius = 36; 
-    const stroke = 6;
+    const stroke = 6; // Slightly increased stroke for better visibility
     const normalizedRadius = radius - stroke / 2;
     const circumference = normalizedRadius * 2 * Math.PI;
     
     const strokeDashoffset = circumference - (percentage / 100) * circumference;
   
     return (
-      <div className="relative w-[90px] h-[90px] flex items-center justify-center bg-[#1A1D21] rounded-full shadow-lg border border-[#24272B]">
-        <svg height="100%" width="100%" className="transform -rotate-90 p-1">
+      <div className={`relative flex items-center justify-center bg-[#1A1D21] rounded-full shadow-xl border border-[#24272B] ${className}`}>
+        <svg viewBox="0 0 72 72" className="w-full h-full transform -rotate-90 p-1">
            {/* Background Track */}
            <circle
              stroke="#303438"
              strokeWidth={stroke}
              fill="transparent"
              r={normalizedRadius}
-             cx="50%"
-             cy="50%"
+             cx="36"
+             cy="36"
            />
            {/* Progress Indicator */}
            <circle
@@ -161,13 +237,13 @@ const CircularProgress: React.FC<{ current: number; total: number }> = ({ curren
              strokeLinecap="round"
              fill="transparent"
              r={normalizedRadius}
-             cx="50%"
-             cy="50%"
+             cx="36"
+             cy="36"
            />
         </svg>
         <div className="absolute flex flex-col items-center justify-center leading-none">
-            <span className="text-xl font-bold text-white mb-0.5" style={{ fontSize: '20px', fontWeight: 500 }}>{percentage}%</span>
-            <span className="text-[10px] text-[#A0AEC0] font-medium tracking-wide" style={{ fontSize: '16px', fontWeight: 600 }}>{current}/{total}</span>
+            <span className="text-sm lg:text-2xl font-bold text-white mb-0.5">{percentage}%</span>
+            <span className="text-[10px] lg:text-sm text-[#A0AEC0] font-semibold tracking-wide">{current}/{total}</span>
         </div>
       </div>
     );
@@ -176,7 +252,7 @@ const CircularProgress: React.FC<{ current: number; total: number }> = ({ curren
 // --- AssessmentRunner Component ---
 
 const AssessmentRunner: React.FC<AssessmentRunnerProps> = ({ onBack }) => {
-  const [currentQIndex, setCurrentQIndex] = useState(0); // Start at 0 (Q1)
+  const [currentQIndex, setCurrentQIndex] = useState(1); // Start at Q2 based on screenshots
   const [selectedOption, setSelectedOption] = useState<string | null>(null); 
 
   const currentQuestion = questions[currentQIndex % questions.length];
@@ -196,102 +272,111 @@ const AssessmentRunner: React.FC<AssessmentRunnerProps> = ({ onBack }) => {
     }
   };
 
+  const handlePrevious = () => {
+      if (currentNumber > 1) {
+          setCurrentQIndex(prev => prev - 1);
+          setSelectedOption(null);
+      } else {
+          onBack();
+      }
+  }
+
   return (
-    <div className="flex justify-center bg-transparent w-full">
-        <div className="flex flex-col lg:flex-row w-full h-full min-h-[calc(100vh-64px)] max-w-[1400px] gap-6 lg:gap-16 px-4 pb-4">
+    // Main Container: Occupy full available height from Layout
+    <div className="flex justify-center bg-transparent w-full h-full overflow-hidden">
+        <div className="flex flex-col lg:flex-row w-full h-full max-w-[1450px] gap-4 lg:gap-10 xl:gap-16">
             
-            {/* Left Sidebar - Vertical Stepper (Hidden on mobile) */}
-            <div className="hidden lg:flex flex-col items-center w-24 shrink-0">
+            {/* Left Sidebar - Vertical Stepper (Visible on lg screens) */}
+            <div className="hidden lg:flex flex-col items-center w-16 xl:w-24 shrink-0 h-full justify-center pt-4">
                <VerticalStepper currentStep={currentNumber} totalSteps={totalQuestions} />
             </div>
 
             {/* Main Content Area */}
-            <div className="flex-1 flex flex-col relative min-w-0">
+            <div className="flex-1 flex flex-col relative min-w-0 h-full">
                 
-                {/* Top Progress Indicator (Desktop - positioned absolute) */}
-                <div className="absolute -top-12 right-0 hidden lg:block z-10">
+                {/* Top Progress Indicator (Desktop) */}
+                {/* Adjusted right position to move it 'right to left' */}
+                <div className="absolute top-2 right-0 lg:right-10 hidden lg:block z-20">
                     <CircularProgress current={currentNumber} total={totalQuestions} />
                 </div>
-                {/* Mobile Progress (Flex-end) */}
-                <div className="lg:hidden flex justify-end mb-6 mt-2">
-                    <CircularProgress current={currentNumber} total={totalQuestions} />
+                
+                {/* Mobile/Tablet Progress */}
+                <div className="lg:hidden flex justify-end mb-1 mt-1 pr-1">
+                    <CircularProgress current={currentNumber} total={totalQuestions} className="w-14 h-14" />
                 </div>
 
-                {/* Question Container */}
-                <div className="flex-grow flex flex-col justify-center w-full max-w-5xl lg:pr-10 overflow-y-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
+                {/* Question Scrollable Container */}
+                <div className="flex-grow flex flex-col w-full max-w-5xl lg:pr-10 overflow-y-auto scrollbar-hide [&::-webkit-scrollbar]:hidden [-ms-overflow-style:'none'] [scrollbar-width:'none']">
                     
-                    {/* Text Section */}
-                    <div className="mb-8 lg:mb-12">
-                        {currentQuestion.preamble && (
-                            <p className="text-lg lg:text-xl text-brand-text-light-secondary dark:text-[#A0AEC0] mb-3 font-normal leading-relaxed" style={{ fontWeight: 400 }}>
-                                {currentQuestion.preamble}
-                            </p>
-                        )}
-                        <h1 className="text-2xl lg:text-[40px] font-semibold text-brand-text-light-primary dark:text-white leading-tight mt-2" style={{ fontWeight: 600 }}>
-                            {currentQuestion.text}
-                        </h1>
-                    </div>
+                    {/* Inner wrapper using my-auto for vertical centering */}
+                    <div className="flex flex-col justify-center min-h-full py-4 sm:py-6 my-auto">
+                        {/* Text Section */}
+                        <div className="mb-5 sm:mb-8 lg:mb-10 animate-fade-in">
+                            {currentQuestion.preamble && (
+                                <p className="text-sm sm:text-base lg:text-xl text-[#A0AEC0] mb-2 sm:mb-3 font-normal leading-relaxed">
+                                    {currentQuestion.preamble}
+                                </p>
+                            )}
+                            <h1 className="text-xl sm:text-2xl lg:text-[34px] xl:text-[38px] font-semibold text-white leading-snug">
+                                {currentQuestion.text}
+                            </h1>
+                        </div>
 
-                    {/* Options List */}
-                    <div className="space-y-4 lg:space-y-5">
-                        {currentQuestion.options.map((option) => {
-                            const isSelected = selectedOption === option.id;
-                            return (
-                                <button
-                                    key={option.id}
-                                    onClick={() => handleOptionSelect(option.id)}
-                                    className={`
-                                        w-full p-4 lg:p-5 rounded-xl text-left flex items-center gap-4 lg:gap-5 transition-all duration-200 border group
-                                        ${isSelected 
-                                            ? 'bg-[#1ED36A] border-[#1ED36A] shadow-[0_4px_14px_0_rgba(30,211,106,0.39)] scale-[1.01]' 
-                                            : 'bg-brand-light-secondary dark:bg-[#24272B] border-transparent hover:bg-brand-light-tertiary dark:hover:bg-[#2D3136]'
-                                        }
-                                    `}
-                                >
-                                    <div className="flex-shrink-0">
-                                        {isSelected ? (
-                                            <CheckCircleIcon className="w-6 h-6 lg:w-7 lg:h-7" />
-                                        ) : (
-                                            <div className="w-6 h-6 lg:w-7 lg:h-7 rounded-full border-[1.5px] border-[#3E4247] bg-[#303438] group-hover:border-[#555]" />
-                                        )}
-                                    </div>
-                                    
-                                    <span 
-                                        className={`text-base lg:text-lg font-medium ${isSelected ? 'text-white' : 'text-brand-text-light-primary dark:text-[#E2E8F0]'}`}
-                                        style={{ fontSize: '24px', fontWeight: 400 }}
+                        {/* Options List */}
+                        <div className="space-y-2 sm:space-y-3 lg:space-y-4 animate-fade-in" style={{ animationDelay: '100ms' }}>
+                            {currentQuestion.options.map((option) => {
+                                const isSelected = selectedOption === option.id;
+                                return (
+                                    <button
+                                        key={option.id}
+                                        onClick={() => handleOptionSelect(option.id)}
+                                        className={`
+                                            w-full p-3 sm:p-4 lg:p-5 rounded-xl text-left flex items-center gap-3 sm:gap-4 lg:gap-6 transition-all duration-200 border group relative overflow-hidden
+                                            ${isSelected 
+                                                ? 'bg-[#1ED36A] border-[#1ED36A] shadow-[0_4px_20px_rgba(30,211,106,0.3)]' 
+                                                : 'bg-[#24272B] border-transparent hover:bg-[#2D3136]'
+                                            }
+                                        `}
                                     >
-                                        {option.text}
-                                    </span>
-                                </button>
-                            );
-                        })}
+                                        <div className="flex-shrink-0 z-10">
+                                            {isSelected ? (
+                                                <CheckCircleIcon className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7" />
+                                            ) : (
+                                                <div className="w-5 h-5 sm:w-6 sm:h-6 lg:w-7 lg:h-7 rounded-full border-[1.5px] border-[#3E4247] bg-[#303438] group-hover:border-[#555] transition-colors" />
+                                            )}
+                                        </div>
+                                        
+                                        <span className={`text-sm sm:text-base lg:text-lg xl:text-xl font-medium z-10 ${isSelected ? 'text-white' : 'text-[#E2E8F0]'}`}>
+                                            {option.text}
+                                        </span>
+                                    </button>
+                                );
+                            })}
+                        </div>
                     </div>
-
                 </div>
 
                 {/* Footer Navigation */}
-                <div className="w-full max-w-5xl flex justify-between items-center mt-auto pt-6 pb-4 shrink-0 lg:pr-10">
+                <div className="w-full max-w-5xl flex justify-between items-center mt-auto pt-3 pb-1 shrink-0 lg:pr-10">
                     <button 
-                        onClick={onBack}
-                        className="px-6 py-3 rounded-full border border-[#303438] text-brand-text-light-primary dark:text-white transition-colors hover:bg-brand-light-tertiary dark:hover:bg-[#24272B]"
-                        style={{ fontSize: '16px', fontWeight: 400 }}
+                        onClick={handlePrevious}
+                        className="px-5 py-2 sm:px-6 sm:py-2.5 lg:px-8 lg:py-3 rounded-full border border-[#303438] text-white transition-colors hover:bg-[#24272B] text-xs sm:text-sm lg:text-base font-medium"
                     >
-                        {currentNumber === 1 ? 'Back to Dashboard' : 'Previous'}
+                        {currentNumber === 1 ? 'Back' : 'Previous'}
                     </button>
 
                     <button 
                         onClick={handleNext}
                         disabled={!selectedOption}
                         className={`
-                            px-8 py-3 rounded-full text-white transition-all shadow-lg
+                            px-6 py-2 sm:px-8 sm:py-2.5 lg:px-10 lg:py-3 rounded-full text-white transition-all shadow-lg text-xs sm:text-sm lg:text-base font-medium
                             ${selectedOption 
                                 ? 'bg-[#1ED36A] hover:bg-[#1ED36A]/90 shadow-[#1ED36A]/20 cursor-pointer transform hover:-translate-y-0.5' 
                                 : 'bg-[#303438] text-[#718096] cursor-not-allowed'
                             }
                         `}
-                        style={{ fontSize: '20px', fontWeight: 500 }}
                     >
-                        Next Question
+                        {currentNumber === totalQuestions ? 'Finish Assessment' : 'Next Question'}
                     </button>
                 </div>
             </div>
